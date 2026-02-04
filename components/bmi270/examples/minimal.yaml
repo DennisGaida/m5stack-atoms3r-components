@@ -1,0 +1,55 @@
+# Minimal BMI270 Configuration
+#
+# This example shows the simplest possible configuration
+# with just the accelerometer enabled.
+
+esphome:
+  name: bmi270-minimal
+  platformio_options:
+    # REQUIRED: Large I2C buffer for BMI270 configuration blob upload
+    build_flags: -DI2C_BUFFER_LENGTH=8193
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot
+  ap:
+    ssid: "BMI270 Fallback"
+    password: "12345678"
+
+captive_portal:
+
+# I2C Bus Configuration
+i2c:
+  sda: 21
+  scl: 22
+  scan: true
+  frequency: 400kHz
+
+# BMI270 Sensor - Minimal Configuration
+sensor:
+  - platform: bmi270
+    address: 0x68
+    update_interval: 60s
+
+    # Just accelerometer
+    acceleration_x:
+      name: "Acceleration X"
+    acceleration_y:
+      name: "Acceleration Y"
+    acceleration_z:
+      name: "Acceleration Z"

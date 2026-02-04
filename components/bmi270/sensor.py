@@ -30,9 +30,9 @@ from esphome.const import (
 
 DEPENDENCIES = ["i2c"]
 
-bmi270_bmm150_ns = cg.esphome_ns.namespace("bmi270_bmm150")
-BMI270BMM150Sensor = bmi270_bmm150_ns.class_(
-    "BMI270BMM150Sensor", cg.PollingComponent, i2c.I2CDevice
+bmi270_ns = cg.esphome_ns.namespace("bmi270")
+BMI270Sensor = bmi270_ns.class_(
+    "BMI270Sensor", cg.PollingComponent, i2c.I2CDevice
 )
 
 accel_schema = {
@@ -54,7 +54,7 @@ mag_schema = {
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(BMI270BMM150Sensor),
+            cv.GenerateID(): cv.declare_id(BMI270Sensor),
             cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(
                 icon=ICON_ACCELERATION_X,
                 **accel_schema,

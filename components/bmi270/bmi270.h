@@ -1,3 +1,20 @@
+/**
+ * @file bmi270.h
+ * @brief ESPHome component for BMI270 6-axis IMU with optional BMM150 magnetometer
+ *
+ * This component supports the Bosch BMI270 IMU sensor, providing:
+ * - 3-axis accelerometer (±2g to ±16g range)
+ * - 3-axis gyroscope (±125°/s to ±2000°/s range)
+ * - Temperature sensor
+ * - Optional 3-axis BMM150 magnetometer via auxiliary I2C interface
+ *
+ * The BMI270 requires uploading a configuration blob during initialization.
+ * The magnetometer (BMM150) is accessed through the BMI270's auxiliary I2C master.
+ *
+ * Based on Bosch BMI270 Sensor API: https://github.com/BoschSensortec/BMI270-Sensor-API
+ * Reference implementation from M5Unified: https://github.com/m5stack/M5Unified
+ */
+
 #pragma once
 
 #include "esphome/core/component.h"
@@ -5,9 +22,16 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace bmi270_bmm150 {
+namespace bmi270 {
 
-class BMI270BMM150Sensor : public PollingComponent, public i2c::I2CDevice {
+/**
+ * @brief BMI270 IMU sensor component
+ *
+ * I2C addresses:
+ * - BMI270: 0x68 (default) or 0x69
+ * - BMM150: 0x10 (accessed via BMI270 auxiliary interface, not directly on I2C bus)
+ */
+class BMI270Sensor : public PollingComponent, public i2c::I2CDevice {
   public:
     enum imu_spec_t
     {
@@ -39,7 +63,7 @@ class BMI270BMM150Sensor : public PollingComponent, public i2c::I2CDevice {
 
 
   protected:
-
+    // Raw 3D point data structure for sensor readings
     struct point3d_i16_t
     {
       union
@@ -99,18 +123,29 @@ class BMI270BMM150Sensor : public PollingComponent, public i2c::I2CDevice {
       };
     };
 
+    // Conversion parameters for raw sensor data to physical units
+    // These are fixed based on the configured sensor ranges:
+    // - Accel: ±8g range (can be ±2g, ±4g, ±8g, ±16g)
+    // - Gyro: ±2000°/s range (can be ±125, ±250, ±500, ±1000, ±2000°/s)
+    // - Mag: BMM150 range (±1300µT in x/y, ±2500µT in z)
+    // - Temp: BMI270 internal temperature sensor
+    // TODO: Make these configurable or auto-detect from sensor registers
     struct imu_convert_param_t
     {
-        float accel_res = 8.0f / 32768.0f;
-        float gyro_res = 2000.0f / 32768.0f;
-        float mag_res = 10.0f * 4912.0f / 32768.0f;
-        float temp_res = 1.0f / 512.0f;
-        float temp_offset = 23.0f;
+        float accel_res = 8.0f / 32768.0f;        // g per LSB
+        float gyro_res = 2000.0f / 32768.0f;      // °/s per LSB
+        float mag_res = 10.0f * 4912.0f / 32768.0f;  // µT per LSB (BMM150 specific)
+        float temp_res = 1.0f / 512.0f;           // °C per LSB
+        float temp_offset = 23.0f;                // °C offset
     };
 
+    // Multi-stage setup process for BMI270 initialization
     void internal_setup_(int stage, int retry = 1);
+
+    // Setup for BMM150 magnetometer via auxiliary I2C interface
     void internal_setup_auxilliary_sensor_(int stage, int retry = 1);
 
+    // Upload BMI270 configuration blob (required during initialization)
     bool _upload_file(const uint8_t *config_data, size_t write_len);
 
     bool write_register_(uint8_t reg, const uint8_t *value, size_t len = 1);
@@ -142,13 +177,15 @@ class BMI270BMM150Sensor : public PollingComponent, public i2c::I2CDevice {
 
     imu_spec_t specification_{imu_spec_none};
 
+    // BMM150 magnetometer support via BMI270's auxiliary I2C master
     bool enable_auxilliary_sensor_{false};
-    //TODO: Make configurable in component
+    // BMM150 auxiliary address (0x10 is standard for BMM150)
+    // Note: This is the address used by BMI270's auxiliary interface, not the main I2C bus
     uint8_t auxilliary_sensor_address_{0x10};
 
     imu_raw_data_t raw_data_;
     imu_convert_param_t convert_param_;
 };
 
-}  // namespace bmi270_bmm150
+}  // namespace bmi270
 }  // namespace esphome

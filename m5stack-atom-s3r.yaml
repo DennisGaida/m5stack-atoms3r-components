@@ -45,7 +45,7 @@ external_components:
 #   #     name: Button State Number
 #   #   m5stack_button_sensor_text:
 #   #     name: Button State Text
-#   - platform: bmi270_bmm150
+#   - platform: bmi270
 #     update_interval: 5s
 #     acceleration_x:
 #       name: "IMU Accel X"

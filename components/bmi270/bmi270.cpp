@@ -1,14 +1,39 @@
+/**
+ * @file bmi270.cpp
+ * @brief ESPHome component implementation for BMI270 IMU with optional BMM150 magnetometer
+ *
+ * This implementation handles:
+ * - BMI270 initialization including configuration blob upload
+ * - BMM150 magnetometer setup via BMI270's auxiliary I2C master
+ * - Sensor data reading and conversion to physical units
+ *
+ * Based on Bosch BMI270 Sensor API: https://github.com/BoschSensortec/BMI270-Sensor-API
+ * Reference implementation from M5Unified: https://github.com/m5stack/M5Unified
+ */
+
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include "bmi270_bmm150.h"
+#include "bmi270.h"
 
 namespace esphome {
-namespace bmi270_bmm150 {
+namespace bmi270 {
 
-static const char *const TAG = "bmi270_bmm150";
+static const char *const TAG = "bmi270";
 
-//see https://github.com/BoschSensortec/BMI270-Sensor-API/blob/master/bmi270.c
+/**
+ * BMI270 configuration blob
+ *
+ * This binary configuration data is required by the BMI270 during initialization.
+ * It contains feature configuration, compensation parameters, and other settings
+ * that enable the sensor's advanced features (step counter, significant motion, etc.).
+ *
+ * The blob must be uploaded to the sensor during the initialization sequence.
+ * Source: https://github.com/BoschSensortec/BMI270-Sensor-API/blob/master/bmi270.c
+ *
+ * Note: This requires a large I2C buffer (8193 bytes). Ensure your platform is configured
+ * with: -DI2C_BUFFER_LENGTH=8193
+ */
 static constexpr const uint8_t DEFAULT_CONFIGURATION[] = {
   0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x91, 0x03, 0x80, 0x2e, 0xbc,
   0xb0, 0x80, 0x2e, 0xa3, 0x03, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x00, 0xb0, 0x50, 0x30, 0x21, 0x2e, 0x59, 0xf5,
@@ -444,36 +469,42 @@ static constexpr const uint8_t DEFAULT_CONFIGURATION[] = {
   0x2e, 0x00, 0xc1
 };
 
-// addresses - see https://github.com/m5stack/M5Unified/blob/master/src/utility/imu/BMI270_Class.hpp
-static constexpr const uint8_t CHIP_ID                 = 0x00;
-static constexpr const uint8_t CMD_REG_ADDR            = 0x7E;
-static constexpr const uint8_t PWR_CONF_ADDR           = 0x7C;
-static constexpr const uint8_t INIT_CTRL_ADDR          = 0x59;
-static constexpr const uint8_t INT_MAP_DATA_ADDR       = 0x58;
-static constexpr const uint8_t INIT_ADDR_0             = 0x5B;
-static constexpr const uint8_t INIT_DATA_ADDR          = 0x5E;
-static constexpr const uint8_t INTERNAL_STATUS_ADDR    = 0x21;
-static constexpr const uint8_t IF_CONF_ADDR            = 0x6B;
-static constexpr const uint8_t PWR_CTRL_ADDR           = 0x7D;
-static constexpr const uint8_t AUX_IF_CONF_ADDR        = 0x4C;
-static constexpr const uint8_t AUX_DEV_ID_ADDR         = 0x4B;
-static constexpr const uint8_t AUX_WR_DATA_ADDR        = 0x4F;
-static constexpr const uint8_t AUX_WR_ADDR             = 0x4E;
-static constexpr const uint8_t AUX_RD_ADDR             = 0x4D;
-static constexpr const uint8_t AUX_X_LSB_ADDR          = 0x04;
-static constexpr const uint8_t STATUS_ADDR             = 0x03;
-static constexpr const uint8_t INT_STATUS_1_ADDR       = 0x1D;
-static constexpr const uint8_t TEMPERATURE_0_ADDR      = 0x22;
+/**
+ * BMI270 Register Addresses
+ *
+ * Reference:
+ * - BMI270 Datasheet: https://www.bosch-sensortec.com/products/motion-sensors/imus/bmi270/
+ * - M5Unified implementation: https://github.com/m5stack/M5Unified/blob/master/src/utility/imu/BMI270_Class.hpp
+ */
+static constexpr const uint8_t CHIP_ID                 = 0x00;  // Chip ID register (should read 0x24)
+static constexpr const uint8_t STATUS_ADDR             = 0x03;  // Status register
+static constexpr const uint8_t AUX_X_LSB_ADDR          = 0x04;  // Start of sensor data registers (20 bytes: mag, accel, gyro)
+static constexpr const uint8_t INT_STATUS_1_ADDR       = 0x1D;  // Interrupt status (bit 7=accel, 6=gyro, 5=aux/mag)
+static constexpr const uint8_t INTERNAL_STATUS_ADDR    = 0x21;  // Internal status register
+static constexpr const uint8_t TEMPERATURE_0_ADDR      = 0x22;  // Temperature data (2 bytes)
+static constexpr const uint8_t AUX_DEV_ID_ADDR         = 0x4B;  // Auxiliary sensor device ID
+static constexpr const uint8_t AUX_IF_CONF_ADDR        = 0x4C;  // Auxiliary interface configuration
+static constexpr const uint8_t AUX_RD_ADDR             = 0x4D;  // Auxiliary read address
+static constexpr const uint8_t AUX_WR_ADDR             = 0x4E;  // Auxiliary write address
+static constexpr const uint8_t AUX_WR_DATA_ADDR        = 0x4F;  // Auxiliary write data
+static constexpr const uint8_t INT_MAP_DATA_ADDR       = 0x58;  // Interrupt mapping for data ready
+static constexpr const uint8_t INIT_CTRL_ADDR          = 0x59;  // Initialization control
+static constexpr const uint8_t INIT_ADDR_0             = 0x5B;  // Initialization address (for config upload)
+static constexpr const uint8_t INIT_DATA_ADDR          = 0x5E;  // Initialization data (for config upload)
+static constexpr const uint8_t IF_CONF_ADDR            = 0x6B;  // Interface configuration
+static constexpr const uint8_t PWR_CONF_ADDR           = 0x7C;  // Power configuration
+static constexpr const uint8_t PWR_CTRL_ADDR           = 0x7D;  // Power control (enable accel/gyro/aux)
+static constexpr const uint8_t CMD_REG_ADDR            = 0x7E;  // Command register
 
-// commands
-static constexpr const uint8_t SOFT_RESET_CMD          = 0xB6;
+// BMI270 Commands
+static constexpr const uint8_t SOFT_RESET_CMD          = 0xB6;  // Soft reset command
 
-void BMI270BMM150Sensor::setup() {
+void BMI270Sensor::setup() {
   enable_auxilliary_sensor_ = true;
   this->internal_setup_(0);
 }
 
-void BMI270BMM150Sensor::internal_setup_(int stage, int retry) {
+void BMI270Sensor::internal_setup_(int stage, int retry) {
   // see https://github.com/m5stack/M5Unified/blob/5d359529b05d2f92d9e91bcf09dbd47b722538d5/src/utility/imu/BMI270_Class.cpp#L35
   // and https://github.com/boschsensortec/BMI270_SensorAPI/blob/4f0b6990dfa24130052d1713147c6f35a5d3a1da/bmi270.c#L1354
 
@@ -560,14 +591,14 @@ void BMI270BMM150Sensor::internal_setup_(int stage, int retry) {
       }
 
       specification_ = (imu_spec_t)(imu_spec_accel | imu_spec_gyro);
-      ESP_LOGD(TAG, "Config loaded successfully (internal_status: %d)", internal_status);
+      ESP_LOGCONFIG(TAG, "BMI270 initialized successfully (internal_status: %d)", internal_status);
 
       if (enable_auxilliary_sensor_) {
-        ESP_LOGD(TAG, "Enabling auxilliary sensor...");
+        ESP_LOGCONFIG(TAG, "Enabling BMM150 magnetometer via auxiliary interface...");
         this->internal_setup_auxilliary_sensor_(0);
       } else {
         this->setup_complete_ = true;
-        ESP_LOGCONFIG(TAG, "Setup complete without auxilliary sensor!");
+        ESP_LOGCONFIG(TAG, "Setup complete (accelerometer + gyroscope only)");
         ESP_LOGD(TAG, "IMU Spec: %d", specification_);
       }
 
@@ -576,7 +607,7 @@ void BMI270BMM150Sensor::internal_setup_(int stage, int retry) {
   }
 }
 
-void BMI270BMM150Sensor::internal_setup_auxilliary_sensor_(int stage, int retry) {
+void BMI270Sensor::internal_setup_auxilliary_sensor_(int stage, int retry) {
   switch (stage) {
     case 0: {
 
@@ -657,7 +688,7 @@ void BMI270BMM150Sensor::internal_setup_auxilliary_sensor_(int stage, int retry)
         
 
         this->setup_complete_ = true;
-        ESP_LOGCONFIG(TAG, "Setup complete!");
+        ESP_LOGCONFIG(TAG, "Setup complete (accelerometer + gyroscope + magnetometer)");
         ESP_LOGD(TAG, "IMU Spec: %d", specification_);
 
         return;
@@ -666,7 +697,7 @@ void BMI270BMM150Sensor::internal_setup_auxilliary_sensor_(int stage, int retry)
   }
 }
 
-bool BMI270BMM150Sensor::_upload_file(const uint8_t *config_data, size_t write_len)
+bool BMI270Sensor::_upload_file(const uint8_t *config_data, size_t write_len)
 {
   ESP_LOGV(TAG, "Uploading config (size=%d)...", write_len);
   size_t index = 0;
@@ -684,7 +715,7 @@ bool BMI270BMM150Sensor::_upload_file(const uint8_t *config_data, size_t write_l
   return true;
 }
 
-// bool BMI270BMM150Sensor::auxSetupMode(uint8_t i2c_addr)
+// bool BMI270Sensor::auxSetupMode(uint8_t i2c_addr)
 // {
 //   uint8_t aux_i2c_enable = 0x01;
 //   write_register_(IF_CONF_ADDR, &aux_i2c_enable); // AUX I2C enable.
@@ -698,7 +729,7 @@ bool BMI270BMM150Sensor::_upload_file(const uint8_t *config_data, size_t write_l
 //   return write_register_(AUX_DEV_ID_ADDR, &ic2_add_op);
 // }
 
-void BMI270BMM150Sensor::checkStatus(int retry, StatusCallback callback) {
+void BMI270Sensor::checkStatus(int retry, StatusCallback callback) {
   uint8_t status = 0;
 
   if (!this->read_byte(STATUS_ADDR, &status) || retry == 0) {
@@ -714,7 +745,7 @@ void BMI270BMM150Sensor::checkStatus(int retry, StatusCallback callback) {
   callback(true);
 }
 
-// bool BMI270BMM150Sensor::auxWriteRegister8(uint8_t reg, uint8_t data)
+// bool BMI270Sensor::auxWriteRegister8(uint8_t reg, uint8_t data)
 // {
 //   write_register_(AUX_WR_DATA_ADDR, &data); // Value to write to AUX sensor
 //   write_register_(AUX_WR_ADDR, &reg);       // Register number to write to AUX sensor
@@ -731,7 +762,7 @@ void BMI270BMM150Sensor::checkStatus(int retry, StatusCallback callback) {
 //   return retry;
 // }
 
-// uint8_t BMI270BMM150Sensor::auxReadRegister8(uint8_t reg)
+// uint8_t BMI270Sensor::auxReadRegister8(uint8_t reg)
 // {
 //   uint8_t aux_enable_rw = 0x80;
 //   write_register_(AUX_IF_CONF_ADDR, &aux_enable_rw); // enable read write. Burst length 1
@@ -749,7 +780,7 @@ void BMI270BMM150Sensor::checkStatus(int retry, StatusCallback callback) {
 //   return read_register(AUX_X_LSB_ADDR, &data, 1);
 // }
 
-BMI270BMM150Sensor::imu_spec_t BMI270BMM150Sensor::getImuRawData(imu_raw_data_t *data)
+BMI270Sensor::imu_spec_t BMI270Sensor::getImuRawData(imu_raw_data_t *data)
 {
   imu_spec_t res = imu_spec_none;
   uint8_t intstat = 0;
@@ -761,8 +792,13 @@ BMI270BMM150Sensor::imu_spec_t BMI270BMM150Sensor::getImuRawData(imu_raw_data_t 
     auto buffer = this->read_register(AUX_X_LSB_ADDR, (std::uint8_t*)&buf, 20);
     ESP_LOGVV(TAG, "buf: %02X, buffer: %02X", buf, buffer);
 
-    //TODO: Acceleration & Gyro are switched (!), though the following does it like this
-    //   https://github.com/m5stack/M5Unified/blob/5d359529b05d2f92d9e91bcf09dbd47b722538d5/src/utility/imu/BMI270_Class.cpp#L130
+    // Data register layout (20 bytes starting at AUX_X_LSB_ADDR = 0x04):
+    // Bytes 0-5:   Magnetometer X, Y, Z (if enabled) - buf[0], buf[1], buf[2]
+    // Bytes 6-11:  Accelerometer X, Y, Z - buf[3], buf[4], buf[5], buf[6]
+    // Bytes 12-17: Gyroscope X, Y, Z - buf[6], buf[7], buf[8], buf[9]
+    // Note: The accel and gyro appear in opposite order compared to what might be expected.
+    // This matches the M5Unified implementation:
+    // https://github.com/m5stack/M5Unified/blob/5d359529b05d2f92d9e91bcf09dbd47b722538d5/src/utility/imu/BMI270_Class.cpp#L130
     if (buffer == esphome::i2c::NO_ERROR)
     {
       if (intstat & 0x80u)
@@ -796,7 +832,7 @@ BMI270BMM150Sensor::imu_spec_t BMI270BMM150Sensor::getImuRawData(imu_raw_data_t 
 }
 
 
-void BMI270BMM150Sensor::getImuData(imu_data_t *data) {
+void BMI270Sensor::getImuData(imu_data_t *data) {
   imu_spec_t spec = getImuRawData(&raw_data_);
 
   // TODO:
@@ -824,7 +860,7 @@ void BMI270BMM150Sensor::getImuData(imu_data_t *data) {
   }
 }
 
-bool BMI270BMM150Sensor::getTemp(float *t)
+bool BMI270Sensor::getTemp(float *t)
 {
   std::int16_t temp;
   bool res = this->read_register(TEMPERATURE_0_ADDR, (std::uint8_t*)&temp, 2);
@@ -836,7 +872,7 @@ bool BMI270BMM150Sensor::getTemp(float *t)
   return res;
 }
 
-void BMI270BMM150Sensor::dump_config() {
+void BMI270Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI270:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -852,13 +888,13 @@ void BMI270BMM150Sensor::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-bool BMI270BMM150Sensor::read_register_(uint8_t reg, uint8_t data) {
+bool BMI270Sensor::read_register_(uint8_t reg, uint8_t data) {
   if (this->is_failed()) {
     ESP_LOGD(TAG, "Device marked failed");
     return false;
   }
 
-  // using defaults for length (1) and stop (true)
+  // using defaults for length (1)
   this->last_error_ = this->read_register(reg, &data, 1);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
@@ -870,13 +906,13 @@ bool BMI270BMM150Sensor::read_register_(uint8_t reg, uint8_t data) {
   return true;
 }
 
-bool BMI270BMM150Sensor::write_register_(uint8_t reg, const uint8_t *value, size_t len) {
+bool BMI270Sensor::write_register_(uint8_t reg, const uint8_t *value, size_t len) {
   if (this->is_failed()) {
     ESP_LOGD(TAG, "Device marked failed");
     return false;
   }
 
-  // using defaults for length (1) and stop (true)
+  // using defaults for stop (true)
   this->last_error_ = this->write_register(reg, value, len);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning("I2C I/O error");
@@ -888,7 +924,7 @@ bool BMI270BMM150Sensor::write_register_(uint8_t reg, const uint8_t *value, size
   return true;
 }
 
-void BMI270BMM150Sensor::update() {
+void BMI270Sensor::update() {
   if (!this->setup_complete_) {
     return;
   }
@@ -900,7 +936,7 @@ void BMI270BMM150Sensor::update() {
     ESP_LOGVV(TAG, "temperature: %.1f°C", temperature);
   }
     
-  BMI270BMM150Sensor::imu_data_t data;
+  BMI270Sensor::imu_data_t data;
   getImuData(&data);
   
   float gyro_x = (float) data.gyro.x;
@@ -951,7 +987,7 @@ void BMI270BMM150Sensor::update() {
   this->status_clear_warning();
 }
 
-float BMI270BMM150Sensor::get_setup_priority() const { return setup_priority::DATA; }
+float BMI270Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
-}  // namespace bmi270_bmm150
+}  // namespace bmi270
 }  // namespace esphome
