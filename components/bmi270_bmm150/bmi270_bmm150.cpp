@@ -877,7 +877,7 @@ bool BMI270BMM150Sensor::write_register_(uint8_t reg, const uint8_t *value, size
   }
 
   // using defaults for length (1) and stop (true)
-  this->last_error_ = this->write_register(reg, value, len, true);
+  this->last_error_ = this->write_register(reg, value, len);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning("I2C I/O error");
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: Reg=0x%02X, Err=%s", reg, this->last_error_);
