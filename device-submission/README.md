@@ -2,21 +2,23 @@
 
 This directory contains files for submitting the M5Stack AtomS3R device configuration to the ESPHome Devices repository.
 
-## Two Separate Submissions
+## Status
 
-Your project involves **two different repositories**:
+**Repository:** https://github.com/esphome/devices.esphome.io (renamed from `esphome/esphome-devices` - old links redirect)
+**Location:** This directory (`device-submission/m5stack-atoms3r/`)
+**Status:** 📝 Needs photos, otherwise ready
 
-### 1. Component Submission → esphome/esphome
-**What:** BMI270 sensor component (generic, reusable)
-**Repository:** https://github.com/esphome/esphome
-**Location:** `components/bmi270/`
-**Status:** ✅ Ready for submission
+This device needs no custom ESPHome components. The IMU (accel/gyro/temp +
+BMM150 magnetometer) and display backlight are both covered by upstream
+platforms, currently pending merge as:
 
-### 2. Device Submission → esphome/esphome-devices
-**What:** M5Stack AtomS3R device configuration
-**Repository:** https://github.com/esphome/esphome-devices
-**Location:** This directory (`device-submission/M5Stack-AtomS3R/`)
-**Status:** 📝 Needs photos and review
+- [esphome/esphome#18436](https://github.com/esphome/esphome/pull/18436) - BMM150 magnetometer support for the `bmi270` motion platform
+- [esphome/esphome#18453](https://github.com/esphome/esphome/pull/18453) - the `lp5562` output component
+
+`index.md`'s Advanced Configuration section pulls both in via
+`external_components: - source: github://pr#...` until they're merged into
+an ESPHome release - update that block to remove the `external_components:`
+override once they land.
 
 ## Device Submission Checklist
 
@@ -45,14 +47,14 @@ difficulty: 2
 - [x] GPIO Pinout
 - [x] I2C Devices
 - [x] Basic Configuration (working YAML)
-- [x] Advanced Configuration (with BMI270)
+- [x] Advanced Configuration (IMU + magnetometer + backlight)
 - [x] Use Cases
 - [x] Resources
 
 ## Adding Photos
 
 1. Take photos of your M5Stack AtomS3R device
-2. Save them in this directory (`device-submission/M5Stack-AtomS3R/`)
+2. Save them in this directory (`device-submission/m5stack-atoms3r/`)
 3. Reference them in `index.md` using markdown:
 
 ```markdown
@@ -70,21 +72,21 @@ difficulty: 2
 
 ### Prerequisites
 
-1. **BMI270 component should be submitted first** (or note it's pending)
-   - Either reference the PR number in your device config
-   - Or use `external_components:` pointing to your GitHub repo
+**No component PRs need to merge first.** The device submission can go ahead
+now - `index.md` already documents the `external_components: source:
+github://pr#...` bridge needed until #18436/#18453 land in a release.
 
-2. **Fork the esphome-devices repository**
+1. **Fork the devices.esphome.io repository**
    ```bash
-   git clone https://github.com/esphome/esphome-devices.git
-   cd esphome-devices
+   git clone https://github.com/esphome/devices.esphome.io.git
+   cd devices.esphome.io
    git checkout main
    git checkout -b m5stack-atoms3r
    ```
 
-3. **Install dependencies**
+2. **Install dependencies** (Astro/Starlight site, needs Node 20+)
    ```bash
-   pnpm install
+   npm install
    ```
 
 ### Steps
@@ -92,15 +94,15 @@ difficulty: 2
 1. **Copy your device folder**
    ```bash
    # From your project root
-   cp -r device-submission/M5Stack-AtomS3R \
-         esphome-devices/src/docs/devices/
+   cp -r device-submission/m5stack-atoms3r \
+         devices.esphome.io/src/docs/devices/
    ```
 
 2. **Preview locally**
    ```bash
-   cd esphome-devices
-   pnpm start
-   # Opens http://localhost:3000/
+   cd devices.esphome.io
+   npm run dev
+   # Opens http://localhost:4321/
    ```
 
 3. **Verify your device page**
@@ -110,68 +112,21 @@ difficulty: 2
 
 4. **Commit and push**
    ```bash
-   git add src/docs/devices/M5Stack-AtomS3R
+   git add src/docs/devices/m5stack-atoms3r
    git commit -m "Add M5Stack AtomS3R device"
    git push origin m5stack-atoms3r
    ```
 
 5. **Create Pull Request**
-   - Go to https://github.com/esphome/esphome-devices
+   - Go to https://github.com/esphome/devices.esphome.io
    - Create PR from your branch
    - Netlify will automatically create a preview
    - Wait for community review
 
-## Configuration Notes
-
-### BMI270 Component Reference
-
-The device configuration includes two options:
-
-**Option 1: After BMI270 is merged into ESPHome**
-```yaml
-sensor:
-  - platform: bmi270
-    # ... configuration
-```
-
-**Option 2: Before BMI270 is merged (using external component)**
-```yaml
-external_components:
-  - source: github://yourusername/m5stack-atoms3r-components
-    components: [ bmi270 ]
-
-sensor:
-  - platform: bmi270
-    # ... configuration
-```
-
-Update the `index.md` based on the BMI270 component status at submission time.
-
-### Display Backlight
-
-The LP5562 backlight controller is mentioned but requires a custom component. Since this component is specific to M5Stack devices and not as universally applicable, you might consider:
-
-1. Keeping it as an external component
-2. Submitting it as a separate PR to ESPHome
-3. Noting in the device docs that backlight control requires a custom component
-
-## Timing
-
-**Recommended order:**
-
-1. ✅ **First:** Submit BMI270 component to esphome/esphome
-   - Wait for review and merge (could take weeks)
-
-2. **Then:** Submit M5Stack AtomS3R device to esphome/esphome-devices
-   - Can reference the merged component
-   - Or use `external_components:` if still pending
-
-Alternatively, you can submit both simultaneously and update the device config once the component is merged.
-
 ## Resources
 
 - [ESPHome Devices - Adding Devices Guide](https://devices.esphome.io/adding-devices)
-- [ESPHome Devices Repository](https://github.com/esphome/esphome-devices)
+- [ESPHome Devices Repository](https://github.com/esphome/devices.esphome.io)
 - [M5Stack AtomS3R Official Docs](https://docs.m5stack.com/en/core/AtomS3R)
 
 ## Questions?

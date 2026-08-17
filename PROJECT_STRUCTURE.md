@@ -1,6 +1,6 @@
 # Project Structure
 
-This document describes the organization of the M5Stack AtomS3R ESPHome components project.
+This document describes the organization of the M5Stack AtomS3R ESPHome project.
 
 ## Root Directory
 
@@ -13,54 +13,30 @@ This document describes the organization of the M5Stack AtomS3R ESPHome componen
 ├── m5stack-atom-s3r.yaml       # Main device configuration
 ├── requirements.txt             # Python dependencies for ESPHome
 ├── secrets.yaml                 # WiFi/API secrets (gitignored)
-├── tmp_*.md                     # Temporary reference documents
 ├── .gitignore                  # Git ignore rules
 ├── .vscode/                     # VS Code configuration
-├── components/                  # ESPHome custom components
 ├── docs/                        # Documentation assets
 ├── scripts/                     # Setup utilities
 └── device-submission/           # Files for ESPHome Devices repository
 ```
 
-## Components Directory
+There is no `components/` directory. This device needs no custom ESPHome
+components: the IMU (accel/gyro/temp + BMM150 magnetometer) is driven by the
+official `motion`/`bmi270` platform, and the display backlight by the
+official `lp5562` platform.
 
-Custom ESPHome components for the M5Stack AtomS3R hardware:
+## Pending upstream PRs
 
-```
-components/
-├── bmi270/                      # BMI270 IMU sensor (ready for ESPHome submission)
-│   ├── __init__.py             # Python package marker
-│   ├── sensor.py               # ESPHome configuration schema
-│   ├── bmi270.h                # C++ header
-│   ├── bmi270.cpp              # C++ implementation
-│   ├── README.md               # Component documentation
-│   ├── examples/               # Example configurations
-│   │   ├── minimal.yaml       # Basic example
-│   │   ├── full.yaml          # Full featured example
-│   │   └── m5stack-atoms3r.yaml
-│   ├── test/                   # Component tests
-│   │   └── test.bmi270.yaml
-│   └── tmp_*.md                # Temporary reference docs
-│
-├── m5stack_button_sensor/       # Button state sensor
-├── m5stack_button_text_sensor/  # Button text representation
-├── m5stack_button_compound_sensor/ # Combined button sensor
-├── m5stack_display_backlight_output/ # Display backlight control (LP5562)
-└── m5stack_imu_sensor/          # Alternative IMU using M5Unified
-```
+Both of the platforms this device relies on for its I2C peripherals are
+currently open pull requests against `esphome/esphome`, not yet in a release:
 
-### Component Organization
+- [esphome/esphome#18436](https://github.com/esphome/esphome/pull/18436) - adds optional BMM150 magnetometer support to the `bmi270` motion platform
+- [esphome/esphome#18453](https://github.com/esphome/esphome/pull/18453) - adds the `lp5562` output component (used here for the display backlight)
 
-Each component follows the ESPHome external component pattern:
-
-```
-component_name/
-├── __init__.py                  # Empty Python package file
-├── <platform>.py               # ESPHome config (sensor.py, output.py, etc.)
-├── <component_name>.h          # C++ header file
-├── <component_name>.cpp        # C++ implementation
-└── README.md                    # Component documentation
-```
+Until they're merged, `m5stack-atom-s3r.yaml` pulls both in directly via
+`external_components: - source: github://pr#18436` / `github://pr#18453`.
+**Once merged into an ESPHome release, delete that `external_components:`
+block** - the platforms will already ship with the `esphome` pip package.
 
 ## Scripts Directory
 
@@ -105,7 +81,7 @@ Files prepared for submitting the M5Stack AtomS3R to ESPHome Devices:
 
 ```
 device-submission/
-└── M5Stack-AtomS3R/
+└── m5stack-atoms3r/
     ├── index.md                 # Device documentation (markdown)
     ├── README.md                # Submission instructions
     └── (add photos here)        # Device images for documentation
@@ -116,8 +92,6 @@ device-submission/
 - Photos of the physical device
 - Complete working configuration
 - Pin mappings and technical details
-
-**This is separate from the component submission!**
 
 ## Build Artifacts (gitignored)
 
@@ -157,8 +131,8 @@ These directories are created during build and not committed to git:
 - **m5stack-atom-s3r.yaml** - Complete configuration for M5Stack AtomS3R
   - Includes `.defaults.yaml` for common settings
   - Hardware-specific pin assignments
+  - `motion`/`bmi270` + `lp5562` platforms (via the pending PRs above)
   - Display configuration with Teams presence logic
-  - References custom components from `components/`
 
 ### Shared Configuration
 
@@ -177,35 +151,13 @@ These directories are created during build and not committed to git:
   - OTA passwords
   - Create from template in README.md
 
-## Submissions to ESPHome
+## Device Submission (esphome/devices.esphome.io)
 
-This project has **two separate submissions** to different ESPHome repositories:
+The M5Stack AtomS3R device configuration is prepared for the ESPHome Devices
+repository:
 
-### 1. Component Submission (esphome/esphome)
-
-The `bmi270` component is prepared for the main ESPHome repository:
-
-**Location:** `components/bmi270/`
-**Repository:** https://github.com/esphome/esphome
-**What:** Generic BMI270 sensor component (hardware-agnostic)
-
-**Essential files for submission:**
-- Core component files (`.py`, `.h`, `.cpp`)
-- README.md (user documentation)
-- examples/ (working configurations)
-- test/ (component tests)
-
-**Temporary reference files** (prefixed with `tmp_`):
-- tmp_PR_SUBMISSION_GUIDE.md
-- tmp_IMPLEMENTATION_SUMMARY.md
-- tmp_PR_CHECKLIST.md
-
-### 2. Device Submission (esphome/esphome-devices)
-
-The M5Stack AtomS3R device configuration is prepared for the ESPHome Devices repository:
-
-**Location:** `device-submission/M5Stack-AtomS3R/`
-**Repository:** https://github.com/esphome/esphome-devices
+**Location:** `device-submission/m5stack-atoms3r/`
+**Repository:** https://github.com/esphome/devices.esphome.io (renamed from `esphome/esphome-devices`)
 **What:** Complete device configuration and documentation
 
 **Files for submission:**
@@ -213,72 +165,28 @@ The M5Stack AtomS3R device configuration is prepared for the ESPHome Devices rep
 - Device photos (add your own)
 - README.md (submission instructions)
 
-## Best Practices
-
-### Adding New Components
-
-1. Create directory in `components/`
-2. Follow ESPHome component structure
-3. Add README.md with examples
-4. Test with example configuration
-5. Document in main README.md
-
-### Adding Documentation
-
-1. Device photos → `docs/images/`
-2. Design files → `docs/design/`
-3. Reference in README.md with relative paths
-
-### Development Workflow
+## Development Workflow
 
 1. **Setup:** Run `scripts/setup.bat` or `scripts/setup.sh`
-2. **Edit:** Modify YAML or component files
+2. **Edit:** Modify `m5stack-atom-s3r.yaml`
 3. **Validate:** `esphome config m5stack-atom-s3r.yaml`
 4. **Build:** `esphome compile m5stack-atom-s3r.yaml`
 5. **Upload:** `esphome upload m5stack-atom-s3r.yaml`
 6. **Monitor:** `esphome logs m5stack-atom-s3r.yaml`
-
-### Version Control
-
-**Commit:**
-- Source code and configurations
-- Documentation (markdown, examples)
-- Component files
-- Requirements and setup scripts
 
 **Don't commit:**
 - `secrets.yaml` (contains sensitive data)
 - `.esphome/` (build artifacts)
 - `.pio/` (build directory)
 - `.venv/` (virtual environment)
-- Temporary files (`tmp_*.md` - optional)
-
-## File Naming Conventions
-
-- **UPPERCASE.md** - Important documentation (README, LICENSE)
-- **lowercase.yaml** - Configuration files
-- **snake_case/** - Component and directory names
-- **tmp_*.md** - Temporary reference documents
-- **.dotfiles** - Configuration and hidden files
 
 ## External Dependencies
 
 - **ESPHome** - Framework for ESP32 devices
 - **PlatformIO** - Build system
 - **Home Assistant** - Smart home integration
-- **M5Unified** - M5Stack hardware library (for some components)
-
-## Support and Contributing
-
-For component-specific questions:
-- See component README.md files
-- Check example configurations
-
-For BMI270 component submission:
-- See `components/bmi270/tmp_PR_SUBMISSION_GUIDE.md`
-- All files are ready for ESPHome PR
 
 ---
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-08-17
 **Project:** M5Stack AtomS3R ESPHome Components

@@ -4,7 +4,6 @@ date-published: 2026-02-04
 type: sensor
 standard: global
 board: esp32
-difficulty: 2
 ---
 
 <!-- TODO: Add device photos here
@@ -129,49 +128,63 @@ font:
     size: 20
 ```
 
-## Advanced Configuration with BMI270 Sensor
+## Advanced Configuration: IMU + Magnetometer + Backlight
 
-The M5Stack AtomS3R includes a BMI270 6-axis IMU with BMM150 magnetometer. To use these sensors:
+The M5Stack AtomS3R includes a BMI270 6-axis IMU with a BMM150 magnetometer
+wired through the BMI270's auxiliary I2C interface, plus an LP5562 LED
+driver for the display backlight. Both are fully supported by upstream
+ESPHome platforms - no custom components needed:
 
 ```yaml
-# Add to the basic configuration above
-
-# External component (until BMI270 is in ESPHome core)
+# TODO: remove once esphome/esphome#18436 and #18453 are merged into a
+# release - until then, both platforms need to be pulled in from the PRs.
 external_components:
-  - source: github://yourusername/m5stack-atoms3r-components
+  - source: github://pr#18436
     components: [ bmi270 ]
+  - source: github://pr#18453
+    components: [ lp5562 ]
+
+motion:
+  - platform: bmi270
+    id: bmi270_motion
+    accelerometer_range: 8G
+    gyroscope_range: 2000DPS
+    aux_device: BMM150
 
 sensor:
+  - platform: motion
+    motion_id: bmi270_motion
+    type: acceleration_x
+    name: "IMU Accel X"
+  # ...acceleration_y/z, gyroscope_x/y/z follow the same pattern
   - platform: bmi270
-    address: 0x68
-    update_interval: 60s
-    acceleration_x:
-      name: "Acceleration X"
-    acceleration_y:
-      name: "Acceleration Y"
-    acceleration_z:
-      name: "Acceleration Z"
-    gyroscope_x:
-      name: "Gyroscope X"
-    gyroscope_y:
-      name: "Gyroscope Y"
-    gyroscope_z:
-      name: "Gyroscope Z"
-    field_strength_x:
-      name: "Magnetic Field X"
-    field_strength_y:
-      name: "Magnetic Field Y"
-    field_strength_z:
-      name: "Magnetic Field Z"
-    temperature:
-      name: "IMU Temperature"
+    type: temperature
+    name: "IMU Temperature"
+  - platform: bmi270
+    type: magnetic_field_x
+    name: "IMU Mag X"
+  # ...magnetic_field_y/z follow the same pattern
+
+lp5562:
+  - id: lp5562_1
+    address: 0x30
+
+output:
+  - platform: lp5562
+    id: displaybacklightoutput
+    lp5562_id: lp5562_1
+    channel: white
+
+light:
+  - platform: monochromatic
+    output: displaybacklightoutput
+    name: "Display Backlight"
 ```
 
-Note: The BMI270 component requires a large I2C buffer, which is why `build_flags: -DI2C_BUFFER_LENGTH=8193` is included in the configuration.
-
-## Display Backlight Control
-
-The display backlight is controlled by an LP5562 LED driver. A custom component is required for full control. Without the component, the backlight operates at full brightness by default.
+See the [BMI270 motion platform docs](https://esphome.io/components/motion/bmi270/)
+for the full set of accelerometer/gyroscope options. Note: BMI270 requires a
+large I2C buffer, which is why `build_flags: -DI2C_BUFFER_LENGTH=8193` is
+included in the Basic Configuration above.
 
 ## Use Cases
 

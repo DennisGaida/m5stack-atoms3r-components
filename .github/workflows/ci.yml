@@ -43,11 +43,6 @@ jobs:
           homeassistant_api_key: "T1E9CTfguFfBnkGyKCK9Sjmb/qGHKJKX0Uzp8LmZ4mA="
 
           ota_password: "ci_password"
-
-          mqtt_address: "0.0.0.0"
-          mqtt_port: 1883
-          mqtt_username: "ci"
-          mqtt_password: "ci_password"
           EOF
 
       - name: Validate ESPHome config

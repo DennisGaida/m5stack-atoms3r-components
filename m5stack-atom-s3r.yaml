@@ -28,49 +28,69 @@ esphome:
   project:
     name: esphome.m5stack-atom-s3r
     version: dev
-  libraries:
-    - M5Unified=https://github.com/m5stack/M5Unified#0.2.4
   platformio_options:
       build_flags: -DI2C_BUFFER_LENGTH=8193
 
+# TODO: remove once esphome/esphome#18436 and #18453 are merged into a
+# release - at that point bmi270 (with BMM150 aux support) and lp5562 will
+# already be part of the esphome pip package and this block can go away.
 external_components:
-  - source: components
+  - source: github://pr#18436
+    components: [ bmi270 ]
+  - source: github://pr#18453
+    components: [ lp5562 ]
 
 
 ### Specific instructions for the M5Stack AtomS3R board
 
-# sensor:
-#   # - platform: m5stack_button_compound_sensor
-#   #   m5stack_button_sensor_number:
-#   #     name: Button State Number
-#   #   m5stack_button_sensor_text:
-#   #     name: Button State Text
-#   - platform: bmi270
-#     update_interval: 5s
-#     acceleration_x:
-#       name: "IMU Accel X"
-#     acceleration_y:
-#       name: "IMU Accel Y"
-#     acceleration_z:
-#       name: "IMU Accel z"
-#     gyroscope_x:
-#       name: "IMU Gyro X"
-#     gyroscope_y:
-#       name: "IMU Gyro Y"
-#     gyroscope_z:
-#       name: "IMU Gyro z"
-#     field_strength_x:
-#       name: "IMU Mag X"
-#     field_strength_y:
-#       name: "IMU Mag Y"
-#     field_strength_z:
-#       name: "IMU Mag z"
-#     temperature:
-#       name: "IMU Temperature"
+# The AtomS3R has a BMI270 6-axis IMU with a BMM150 magnetometer wired
+# through the BMI270's auxiliary I2C interface.
+motion:
+  - platform: bmi270
+    id: bmi270_motion
+    accelerometer_range: 8G
+    gyroscope_range: 2000DPS
+    aux_device: BMM150
+
+sensor:
+  - platform: motion
+    motion_id: bmi270_motion
+    type: acceleration_x
+    name: "IMU Accel X"
+  - platform: motion
+    motion_id: bmi270_motion
+    type: acceleration_y
+    name: "IMU Accel Y"
+  - platform: motion
+    motion_id: bmi270_motion
+    type: acceleration_z
+    name: "IMU Accel Z"
+  - platform: motion
+    motion_id: bmi270_motion
+    type: gyroscope_x
+    name: "IMU Gyro X"
+  - platform: motion
+    motion_id: bmi270_motion
+    type: gyroscope_y
+    name: "IMU Gyro Y"
+  - platform: motion
+    motion_id: bmi270_motion
+    type: gyroscope_z
+    name: "IMU Gyro Z"
+  - platform: bmi270
+    type: temperature
+    name: "IMU Temperature"
+  - platform: bmi270
+    type: magnetic_field_x
+    name: "IMU Mag X"
+  - platform: bmi270
+    type: magnetic_field_y
+    name: "IMU Mag Y"
+  - platform: bmi270
+    type: magnetic_field_z
+    name: "IMU Mag Z"
 
 text_sensor:
-#   - platform: m5stack_button_text_sensor
-#     name: Button State Text
   # - platform: mqtt_subscribe
   #   name: "Teams Presence"
   #   id: teams_status
@@ -83,30 +103,6 @@ text_sensor:
     name: "Teams Status"
     entity_id: sensor.teams_status
     id: teams_status
-
-# sensor:
-#   - platform: m5stack_imu_sensor
-#     update_interval: 5s
-#     acceleration_x:
-#       name: "IMU Accel X"
-#     acceleration_y:
-#       name: "IMU Accel Y"
-#     acceleration_z:
-#       name: "IMU Accel z"
-#     gyroscope_x:
-#       name: "IMU Gyro X"
-#     gyroscope_y:
-#       name: "IMU Gyro Y"
-#     gyroscope_z:
-#       name: "IMU Gyro z"
-#     field_strength_x:
-#       name: "IMU Mag X"
-#     field_strength_y:
-#       name: "IMU Mag Y"
-#     field_strength_z:
-#       name: "IMU Mag z"
-#     temperature:
-#       name: "IMU Temperature"
 
 #G41 = Button
 binary_sensor:
@@ -155,6 +151,10 @@ i2c:
   frequency: 400kHz
   # timeout: 200us # doesn't work with idf
 
+lp5562:
+  - id: lp5562_1
+    address: 0x30
+
 light:
   - platform: monochromatic
     output: displaybacklightoutput
@@ -166,8 +166,10 @@ light:
     icon: mdi:television-ambient-light
 
 output:
-  - platform: m5stack_display_backlight_output
+  - platform: lp5562
     id: displaybacklightoutput
+    lp5562_id: lp5562_1
+    channel: white
 
 spi:
   clk_pin: 15
