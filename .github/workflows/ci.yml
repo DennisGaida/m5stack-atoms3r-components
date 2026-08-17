@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies (cairo)
+        run: sudo apt-get update && sudo apt-get install -y libcairo2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}
+
+      - name: Create dummy secrets.yaml
+        run: |
+          cat > secrets.yaml <<'EOF'
+          wifi_ssid: "ci_ssid"
+          wifi_password: "ci_password"
+
+          wifi_ap_name: "CI Fallback Hotspot"
+          wifi_ap_password: "ci_password"
+
+          homeassistant_api_key: "T1E9CTfguFfBnkGyKCK9Sjmb/qGHKJKX0Uzp8LmZ4mA="
+
+          ota_password: "ci_password"
+
+          mqtt_address: "0.0.0.0"
+          mqtt_port: 1883
+          mqtt_username: "ci"
+          mqtt_password: "ci_password"
+          EOF
+
+      - name: Validate ESPHome config
+        run: esphome config m5stack-atom-s3r.yaml
+
+      - name: Compile firmware
+        run: esphome compile m5stack-atom-s3r.yaml
