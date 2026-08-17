@@ -723,7 +723,7 @@ void BMI270BMM150Sensor::checkStatus(int retry, StatusCallback callback) {
 //   do {
 //     vTaskDelay(1);
 //     //todo: replace with internal method
-//     this->read_register(STATUS_ADDR, &data, 1, true);
+//     this->read_register(STATUS_ADDR, &data, 1);
 //     ESP_LOGD(TAG, "STATUS_ADDR: %d", data);
 //   }
 //   while (data & 0b100 && --retry); //checks whether the third bit of data is set
@@ -741,24 +741,24 @@ void BMI270BMM150Sensor::checkStatus(int retry, StatusCallback callback) {
 //   do {
 //     vTaskDelay(1);
 //     //todo: replace with internal method
-//     this->read_register(STATUS_ADDR, &data, 1, true);
+//     this->read_register(STATUS_ADDR, &data, 1);
 //     ESP_LOGD(TAG, "STATUS_ADDR: %d", data);
 //   }
 //   while (data & 0b100 && --retry);
 
-//   return read_register(AUX_X_LSB_ADDR, &data, 1, true);
+//   return read_register(AUX_X_LSB_ADDR, &data, 1);
 // }
 
 BMI270BMM150Sensor::imu_spec_t BMI270BMM150Sensor::getImuRawData(imu_raw_data_t *data)
 {
   imu_spec_t res = imu_spec_none;
   uint8_t intstat = 0;
-  this->read_register(INT_STATUS_1_ADDR, &intstat, 1, true);
+  this->read_register(INT_STATUS_1_ADDR, &intstat, 1);
   ESP_LOGVV(TAG, "intstat: %02X", intstat);
   if (intstat & 0xE0)
   {
     std::int16_t buf[10];
-    auto buffer = this->read_register(AUX_X_LSB_ADDR, (std::uint8_t*)&buf, 20, true);
+    auto buffer = this->read_register(AUX_X_LSB_ADDR, (std::uint8_t*)&buf, 20);
     ESP_LOGVV(TAG, "buf: %02X, buffer: %02X", buf, buffer);
 
     //TODO: Acceleration & Gyro are switched (!), though the following does it like this
@@ -827,7 +827,7 @@ void BMI270BMM150Sensor::getImuData(imu_data_t *data) {
 bool BMI270BMM150Sensor::getTemp(float *t)
 {
   std::int16_t temp;
-  bool res = this->read_register(TEMPERATURE_0_ADDR, (std::uint8_t*)&temp, 2, true);
+  bool res = this->read_register(TEMPERATURE_0_ADDR, (std::uint8_t*)&temp, 2);
   ESP_LOGVV(TAG, "raw temp: %02X",temp);
   if (res == esphome::i2c::NO_ERROR) {
     *t = temp * convert_param_.temp_res + convert_param_.temp_offset;
@@ -859,7 +859,7 @@ bool BMI270BMM150Sensor::read_register_(uint8_t reg, uint8_t data) {
   }
 
   // using defaults for length (1) and stop (true)
-  this->last_error_ = this->read_register(reg, &data, 1, true);
+  this->last_error_ = this->read_register(reg, &data, 1);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: Reg=0x%02X, Data=0x%02X, Err=%d", reg, data, (int) this->last_error_);
@@ -877,10 +877,10 @@ bool BMI270BMM150Sensor::write_register_(uint8_t reg, const uint8_t *value, size
   }
 
   // using defaults for length (1) and stop (true)
-  this->last_error_ = this->write_register(reg, value, len, true);
+  this->last_error_ = this->write_register(reg, value, len);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning("I2C I/O error");
-    ESP_LOGE(TAG, "write_register_(): I2C I/O error: Reg=0x%02X, Err=%s", reg, this->last_error_);
+    ESP_LOGE(TAG, "write_register_(): I2C I/O error: Reg=0x%02X, Err=%d", reg, this->last_error_);
     return false;
   }
 
