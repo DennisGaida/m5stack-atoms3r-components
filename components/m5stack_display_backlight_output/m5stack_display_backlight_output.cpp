@@ -42,7 +42,7 @@ bool M5StackDisplayBacklightOutput::write_register_(uint8_t reg, uint8_t value) 
   }
 
   // using defaults for length (1) and stop (true)
-  this->last_error_ = this->write_register(reg, &value, 1, true);
+  this->last_error_ = this->write_register(reg, &value, 1);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: Reg=0x%02X, Err=%d", reg, (int) this->last_error_);
