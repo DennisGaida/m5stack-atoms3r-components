@@ -30,6 +30,10 @@ esphome:
     version: dev
   build_flags: -DI2C_BUFFER_LENGTH=8193
 
+psram:
+  mode: octal
+  speed: 80MHz
+
 # TODO: remove once esphome/esphome#18436 and #18453 are merged into a
 # release - at that point bmi270 (with BMM150 aux support) and lp5562 will
 # already be part of the esphome pip package and this block can go away.
@@ -185,18 +189,9 @@ spi:
   mosi_pin: 21
 
 display:
-  - platform: ili9xxx
-    model: st7789v
+  - platform: mipi_spi
+    model: M5STACK-ATOMS3R-GC9107
     id: display_tft
-    dimensions:
-      height: 128
-      width: 128
-      offset_height: 1
-      offset_width: 2
-    cs_pin: 14
-    dc_pin: 42
-    reset_pin: 48
-    invert_colors: true   # black bg, white text
     rotation: 0           # 180 = cable is bottom, 90 = cable is left
     lambda: |-
       const char* state = id(teams_status).state.c_str();
